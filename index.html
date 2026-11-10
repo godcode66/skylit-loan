@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyLit - Book Loan Form</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+    body { background-color: #f0f4f8; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .card { background: #ffffff; max-width: 480px; width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden; }
+    .header { background: #266489; color: white; padding: 22px 24px; }
+    .header h2 { margin: 0; font-size: 20px; }
+    .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+    .body { padding: 24px; }
+    .form-group { margin-bottom: 20px; position: relative; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; color: #1e293b; font-size: 14px; }
+    input[type="text"] { width: 100%; padding: 12px 14px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 15px; outline: none; transition: border 0.2s; }
+    input[type="text"]:focus { border-color: #266489; }
+    .suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 6px 12px rgba(0,0,0,0.1); display: none; margin-top: 4px; }
+    .suggestion-item { padding: 10px 14px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .suggestion-item:hover { background-color: #e0f2fe; color: #0369a1; font-weight: 600; }
+    .book-preview { margin-top: 6px; font-size: 13px; color: #0f766e; font-weight: 500; }
+    button { width: 100%; background: #266489; color: white; border: none; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #1e4e6b; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .success-box { display: none; padding: 28px 24px; text-align: center; }
+    .success-icon { font-size: 48px; margin-bottom: 12px; }
+    .due-box { background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 16px; margin: 18px 0; color: #166534; }
+    .note { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 20px; }
+    .status-muat { font-size: 12px; color: #64748b; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h2>📚 Book Loan Form</h2>
+    <p>Ketik nama Anda dan pilih dari daftar saran yang muncul</p>
+  </div>
+
+  <!-- Bagian Form Input -->
+  <div class="body" id="formContainer">
+    <form id="loanForm" onsubmit="submitForm(event)">
+      <div class="form-group">
+        <label>1. Nama Siswa (Ketik Nama / NIS) *</label>
+        <input type="text" id="inputSiswa" placeholder="Memuat data siswa..." autocomplete="off" disabled required>
+        <div id="statusMuat" class="status-muat">⏳ Menghubungkan ke database perpustakaan...</div>
+        <div id="listSuggestionSiswa" class="suggestions"></div>
+      </div>
+
+      <div class="form-group">
+        <label>2. Kode Buku *</label>
+        <input type="text" id="inputBuku" placeholder="Contoh: 099" autocomplete="off" required>
+        <div id="judulBukuPreview" class="book-preview"></div>
+      </div>
+
+      <button type="submit" id="btnSubmit" disabled>Submit</button>
+    </form>
+  </div>
+
+  <!-- Bagian Indikator Berhasil & Jatuh Tempo -->
+  <div class="success-box" id="successContainer">
+    <div class="success-icon">✅</div>
+    <h3 style="margin: 0 0 8px; color: #0f172a;">Peminjaman Buku Berhasil!</h3>
+    <p id="detailPinjam" style="margin: 0; font-size: 14px; color: #475569;"></p>
+    
+    <div class="due-box">
+      <div style="font-size: 13px; font-weight: 600; text-transform: uppercase;">📅 Batas Tanggal Pengembalian:</div>
+      <div id="teksJatuhTempo" style="font-size: 18px; font-weight: 700; margin-top: 6px;"></div>
+    </div>
+
+    <div class="note">
+      ⚠️ <b>Penting:</b> Saat mengembalikan buku, siswa wajib menyerahkan fisik buku langsung kepada <b>Pustakawan Labsky Library</b> untuk diverifikasi.
+    </div>
+
+    <button type="button" onclick="resetForm()">Selesai</button>
+  </div>
+</div>
+
+<script>
+  // =========================================================================
+  // TEMPELKAN URL WEB APP (/exec) DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI:
+  // =========================================================================
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWNsOnzZbZF8ZUgNOGI9DtgoSO7HtqAFfqv7FdmstjUWPXIWBANabJgV7_ZBrUue0J/exec";
+
+  var dataSiswa = [];
+  var dataBuku = [];
+
+  var inputSiswa = document.getElementById('inputSiswa');
+  var boxSaran = document.getElementById('listSuggestionSiswa');
+  var statusMuat = document.getElementById('statusMuat');
+  var btnSubmit = document.getElementById('btnSubmit');
+
+  // Ambil data dari Google Sheets saat halaman dibuka
+  window.onload = function() {
+    fetch(SCRIPT_URL + "?action=init")
+      .then(function(res) { return res.json(); })
+      .then(function(res) {
+        dataSiswa = res.siswa || [];
+        dataBuku = res.buku || [];
+        
+        // Aktifkan input setelah data siap
+        inputSiswa.disabled = false;
+        inputSiswa.placeholder = "Contoh: ketik Ahmad atau 1001...";
+        statusMuat.style.display = "none";
+        btnSubmit.disabled = false;
+      })
+      .catch(function(err) {
+        statusMuat.textContent = "⚠️ Gagal memuat data. Silakan muat ulang halaman.";
+        statusMuat.style.color = "#dc2626";
+        console.error("Error:", err);
+      });
+  };
+
+  // Filter suggestion saat siswa mengetik nama/NIS
+  inputSiswa.addEventListener('input', function() {
+    var keyword = this.value.toLowerCase().trim();
+    boxSaran.innerHTML = '';
+    if (!keyword) { boxSaran.style.display = 'none'; return; }
+
+    var hasil = dataSiswa.filter(function(item) {
+      return item.toLowerCase().indexOf(keyword) !== -1;
+    });
+
+    if (hasil.length > 0) {
+      hasil.slice(0, 15).forEach(function(item) {
+        var div = document.createElement('div');
+        div.className = 'suggestion-item';
+        div.textContent = item;
+        div.onclick = function() {
+          inputSiswa.value = item;
+          boxSaran.style.display = 'none';
+        };
+        boxSaran.appendChild(div);
+      });
+      boxSaran.style.display = 'block';
+    } else {
+      boxSaran.style.display = 'none';
+    }
+  });
+
+  // Sembunyikan dropdown jika klik di luar
+  document.addEventListener('click', function(e) {
+    if (e.target !== inputSiswa) boxSaran.style.display = 'none';
+  });
+
+  // Tampilkan judul buku otomatis saat mengetik kode buku
+  var inputBuku = document.getElementById('inputBuku');
+  var previewBuku = document.getElementById('judulBukuPreview');
+  inputBuku.addEventListener('input', function() {
+    var kode = this.value.toUpperCase().trim();
+    var ditemukan = dataBuku.find(function(b) { return b.kode.toUpperCase() === kode; });
+    if (ditemukan) {
+      previewBuku.textContent = "📖 Judul: " + ditemukan.judul;
+      previewBuku.style.color = "#0f766e";
+    } else if (kode.length > 2) {
+      previewBuku.textContent = "ℹ️ Pastikan kode buku sesuai dengan label pada buku";
+      previewBuku.style.color = "#64748b";
+    } else {
+      previewBuku.textContent = "";
+    }
+  });
+
+  // Proses Submit ke Google Apps Script menggunakan fetch POST
+  function submitForm(e) {
+    e.preventDefault();
+    var valSiswa = inputSiswa.value.trim();
+    var valBuku = inputBuku.value.trim();
+
+    if (dataSiswa.length > 0 && dataSiswa.indexOf(valSiswa) === -1) {
+      alert("Harap klik/pilih Nama Siswa langsung dari daftar saran yang muncul!");
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = "Memproses Peminjaman...";
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        identitasSiswa: valSiswa,
+        kodeBuku: valBuku
+      })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      if (res.sukses) {
+        document.getElementById('formContainer').style.display = 'none';
+        document.getElementById('detailPinjam').textContent = valSiswa + " | Kode Buku: " + valBuku.toUpperCase();
+        document.getElementById('teksJatuhTempo').textContent = res.tanggalJatuhTempo;
+        document.getElementById('successContainer').style.display = 'block';
+      } else {
+        alert("Gagal menyimpan: " + (res.pesan || "Terjadi kesalahan pada server."));
+      }
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = "Submit";
+    })
+    .catch(function(err) {
+      alert("Gagal mengirim data. Pastikan koneksi internet stabil lalu coba lagi.");
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = "Submit";
+    });
+  }
+
+  function resetForm() {
+    document.getElementById('loanForm').reset();
+    previewBuku.textContent = "";
+    document.getElementById('successContainer').style.display = 'none';
+    document.getElementById('formContainer').style.display = 'block';
+  }
+</script>
+</body>
+</html>
