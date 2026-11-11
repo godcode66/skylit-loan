@@ -4,13 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SkyLit - Book Loan Form</title>
+  <!-- Menampilkan logo di tab browser -->
+  <link rel="icon" type="image/png" href="logo.png">
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
     body { background-color: #f0f4f8; margin: 0; padding: 20px; display: flex; justify-content: center; }
     .card { background: #ffffff; max-width: 480px; width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden; }
-    .header { background: #266489; color: white; padding: 22px 24px; }
-    .header h2 { margin: 0; font-size: 20px; }
-    .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+    
+    /* Pengaturan Header dengan Logo di Sebelah Kiri */
+    .header { background: #266489; color: white; padding: 22px 24px; display: flex; align-items: center; gap: 16px; }
+    .header-logo { width: 52px; height: 52px; object-fit: contain; background: #ffffff; border-radius: 10px; padding: 5px; flex-shrink: 0; }
+    .header-text h2 { margin: 0; font-size: 20px; }
+    .header-text p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+    
     .body { padding: 24px; }
     .form-group { margin-bottom: 20px; position: relative; }
     label { display: block; font-weight: 600; margin-bottom: 8px; color: #1e293b; font-size: 14px; }
@@ -34,22 +40,26 @@
 
 <div class="card">
   <div class="header">
-    <h2>📚 Book Loan Form</h2>
-    <p>Ketik nama Anda dan pilih dari daftar saran yang muncul</p>
+    <!-- Pastikan nama file gambar logo Anda sesuai dengan atribut src di bawah ini -->
+    <img src="logo.png" alt="Logo Perpustakaan" class="header-logo">
+    <div class="header-text">
+      <h2>Book Loan Form</h2>
+      <p>Ketik nama Anda dan pilih dari daftar saran yang muncul</p>
+    </div>
   </div>
 
   <!-- Bagian Form Input -->
   <div class="body" id="formContainer">
     <form id="loanForm" onsubmit="submitForm(event)">
       <div class="form-group">
-        <label> Nama Siswa (Ketik Nama / NIS) *</label>
+        <label>1. Nama Siswa (Ketik Nama / NIS) *</label>
         <input type="text" id="inputSiswa" placeholder="Memuat data siswa..." autocomplete="off" disabled required>
         <div id="statusMuat" class="status-muat">⏳ Menghubungkan ke database perpustakaan...</div>
         <div id="listSuggestionSiswa" class="suggestions"></div>
       </div>
 
       <div class="form-group">
-        <label> Kode Buku *</label>
+        <label>2. Kode Buku *</label>
         <input type="text" id="inputBuku" placeholder="Contoh: 099" autocomplete="off" required>
         <div id="judulBukuPreview" class="book-preview"></div>
       </div>
@@ -91,7 +101,6 @@
   var statusMuat = document.getElementById('statusMuat');
   var btnSubmit = document.getElementById('btnSubmit');
 
-  // Ambil data dari Google Sheets saat halaman dibuka
   window.onload = function() {
     fetch(SCRIPT_URL + "?action=init")
       .then(function(res) { return res.json(); })
@@ -99,7 +108,6 @@
         dataSiswa = res.siswa || [];
         dataBuku = res.buku || [];
         
-        // Aktifkan input setelah data siap
         inputSiswa.disabled = false;
         inputSiswa.placeholder = "Contoh: ketik Ahmad atau 1001...";
         statusMuat.style.display = "none";
@@ -112,7 +120,6 @@
       });
   };
 
-  // Filter suggestion saat siswa mengetik nama/NIS
   inputSiswa.addEventListener('input', function() {
     var keyword = this.value.toLowerCase().trim();
     boxSaran.innerHTML = '';
@@ -139,12 +146,10 @@
     }
   });
 
-  // Sembunyikan dropdown jika klik di luar
   document.addEventListener('click', function(e) {
     if (e.target !== inputSiswa) boxSaran.style.display = 'none';
   });
 
-  // Tampilkan judul buku otomatis saat mengetik kode buku
   var inputBuku = document.getElementById('inputBuku');
   var previewBuku = document.getElementById('judulBukuPreview');
   inputBuku.addEventListener('input', function() {
@@ -161,7 +166,6 @@
     }
   });
 
-  // Proses Submit ke Google Apps Script menggunakan fetch POST
   function submitForm(e) {
     e.preventDefault();
     var valSiswa = inputSiswa.value.trim();
