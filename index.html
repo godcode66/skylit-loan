@@ -4,19 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SkyLit - Book Loan Form</title>
-  <!-- Menampilkan logo di tab browser -->
   <link rel="icon" type="image/png" href="logo.png">
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
     body { background-color: #f0f4f8; margin: 0; padding: 20px; display: flex; justify-content: center; }
     .card { background: #ffffff; max-width: 480px; width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden; }
-    
-    /* Pengaturan Header dengan Logo di Sebelah Kiri */
     .header { background: #266489; color: white; padding: 22px 24px; display: flex; align-items: center; gap: 16px; }
     .header-logo { width: 52px; height: 52px; object-fit: contain; background: #ffffff; border-radius: 10px; padding: 5px; flex-shrink: 0; }
     .header-text h2 { margin: 0; font-size: 20px; }
     .header-text p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
-    
     .body { padding: 24px; }
     .form-group { margin-bottom: 20px; position: relative; }
     label { display: block; font-weight: 600; margin-bottom: 8px; color: #1e293b; font-size: 14px; }
@@ -25,7 +21,7 @@
     .suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 6px 12px rgba(0,0,0,0.1); display: none; margin-top: 4px; }
     .suggestion-item { padding: 10px 14px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
     .suggestion-item:hover { background-color: #e0f2fe; color: #0369a1; font-weight: 600; }
-    .book-preview { margin-top: 6px; font-size: 13px; color: #0f766e; font-weight: 500; }
+    .book-preview { margin-top: 6px; font-size: 13px; font-weight: 500; line-height: 1.4; }
     button { width: 100%; background: #266489; color: white; border: none; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
     button:hover { background: #1e4e6b; }
     button:disabled { background: #94a3b8; cursor: not-allowed; }
@@ -40,7 +36,6 @@
 
 <div class="card">
   <div class="header">
-    <!-- Pastikan nama file gambar logo Anda sesuai dengan atribut src di bawah ini -->
     <img src="logo.png" alt="Logo Perpustakaan" class="header-logo">
     <div class="header-text">
       <h2>Book Loan Form</h2>
@@ -60,7 +55,7 @@
 
       <div class="form-group">
         <label>2. Kode Buku *</label>
-        <input type="text" id="inputBuku" placeholder="Contoh: 099" autocomplete="off" required>
+        <input type="text" id="inputBuku" placeholder="Contoh: 077" autocomplete="off" required>
         <div id="judulBukuPreview" class="book-preview"></div>
       </div>
 
@@ -91,10 +86,11 @@
   // =========================================================================
   // TEMPELKAN URL WEB APP (/exec) DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI:
   // =========================================================================
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWNsOnzZbZF8ZUgNOGI9DtgoSO7HtqAFfqv7FdmstjUWPXIWBANabJgV7_ZBrUue0J/exec";
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1AOcRP83LqQQG1u8R19piC2F6C92H1XY6KV3ID1Hw9iKr7Mq2daMzgur4KUvYKLzJ/exec";
 
   var dataSiswa = [];
   var dataBuku = [];
+  var dataBukuDipinjam = [];
 
   var inputSiswa = document.getElementById('inputSiswa');
   var boxSaran = document.getElementById('listSuggestionSiswa');
@@ -107,6 +103,7 @@
       .then(function(res) {
         dataSiswa = res.siswa || [];
         dataBuku = res.buku || [];
+        dataBukuDipinjam = res.bukuDipinjam || [];
         
         inputSiswa.disabled = false;
         inputSiswa.placeholder = "Contoh: ketik Ahmad atau 1001...";
@@ -150,19 +147,31 @@
     if (e.target !== inputSiswa) boxSaran.style.display = 'none';
   });
 
+  // Cek kode buku dan status ketersediaannya secara langsung saat diketik
   var inputBuku = document.getElementById('inputBuku');
   var previewBuku = document.getElementById('judulBukuPreview');
+  
   inputBuku.addEventListener('input', function() {
     var kode = this.value.toUpperCase().trim();
-    var ditemukan = dataBuku.find(function(b) { return b.kode.toUpperCase() === kode; });
-    if (ditemukan) {
-      previewBuku.textContent = "📖 Judul: " + ditemukan.judul;
-      previewBuku.style.color = "#0f766e";
-    } else if (kode.length > 2) {
-      previewBuku.textContent = "ℹ️ Pastikan kode buku sesuai dengan label pada buku";
-      previewBuku.style.color = "#64748b";
-    } else {
+    if (!kode) {
       previewBuku.textContent = "";
+      return;
+    }
+
+    var ditemukan = dataBuku.find(function(b) { return b.kode.toUpperCase() === kode; });
+    
+    if (ditemukan) {
+      // Cek apakah buku ini sedang berstatus "Dipinjam"
+      if (dataBukuDipinjam.indexOf(kode) !== -1) {
+        previewBuku.textContent = "🚫 Buku \"" + ditemukan.judul + "\" sedang dipinjam dan belum dikembalikan!";
+        previewBuku.style.color = "#dc2626";
+      } else {
+        previewBuku.textContent = "📖 Judul: " + ditemukan.judul + " (Tersedia)";
+        previewBuku.style.color = "#0f766e";
+      }
+    } else {
+      previewBuku.textContent = "❌ Kode buku tidak terdaftar! Pastikan kode sesuai label pada buku.";
+      previewBuku.style.color = "#dc2626";
     }
   });
 
@@ -170,9 +179,24 @@
     e.preventDefault();
     var valSiswa = inputSiswa.value.trim();
     var valBuku = inputBuku.value.trim();
+    var kodeUpper = valBuku.toUpperCase();
 
+    // 1. Validasi Nama Siswa
     if (dataSiswa.length > 0 && dataSiswa.indexOf(valSiswa) === -1) {
       alert("Harap klik/pilih Nama Siswa langsung dari daftar saran yang muncul!");
+      return;
+    }
+
+    // 2. Validasi Kebenaran Kode Buku di Katalog
+    var bukuDitemukan = dataBuku.find(function(b) { return b.kode.toUpperCase() === kodeUpper; });
+    if (!bukuDitemukan) {
+      alert("Kode buku \"" + kodeUpper + "\" tidak terdaftar di Katalog Buku! Anda tidak dapat meminjam buku dengan kode yang salah.");
+      return;
+    }
+
+    // 3. Validasi Apakah Buku Sedang Dipinjam
+    if (dataBukuDipinjam.indexOf(kodeUpper) !== -1) {
+      alert("Maaf, buku \"" + bukuDitemukan.judul + "\" (Kode: " + kodeUpper + ") saat ini masih dipinjam oleh siswa lain dan belum dikembalikan!");
       return;
     }
 
@@ -190,12 +214,16 @@
     .then(function(res) { return res.json(); })
     .then(function(res) {
       if (res.sukses) {
+        // Tambahkan ke daftar dipinjam lokal agar tidak bisa dipinjam ulang sebelum di-refresh
+        if (dataBukuDipinjam.indexOf(kodeUpper) === -1) {
+          dataBukuDipinjam.push(kodeUpper);
+        }
         document.getElementById('formContainer').style.display = 'none';
-        document.getElementById('detailPinjam').textContent = valSiswa + " | Kode Buku: " + valBuku.toUpperCase();
+        document.getElementById('detailPinjam').textContent = valSiswa + " | Kode Buku: " + kodeUpper + " (" + bukuDitemukan.judul + ")";
         document.getElementById('teksJatuhTempo').textContent = res.tanggalJatuhTempo;
         document.getElementById('successContainer').style.display = 'block';
       } else {
-        alert("Gagal menyimpan: " + (res.pesan || "Terjadi kesalahan pada server."));
+        alert("Gagal meminjam: " + (res.pesan || "Terjadi kesalahan pada server."));
       }
       btnSubmit.disabled = false;
       btnSubmit.textContent = "Submit";
