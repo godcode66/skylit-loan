@@ -86,7 +86,7 @@
   // =========================================================================
   // TEMPELKAN URL WEB APP (/exec) DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI:
   // =========================================================================
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1AOcRP83LqQQG1u8R19piC2F6C92H1XY6KV3ID1Hw9iKr7Mq2daMzgur4KUvYKLzJ/exec";
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzvylhCaTcCThstzKsHFFwz1cAMBkTkveKz0BSIvZJ3QLXfqppXtI-1AjqpGs1jRVSz/exec";
 
   var dataSiswa = [];
   var dataBuku = [];
@@ -96,26 +96,53 @@
   var boxSaran = document.getElementById('listSuggestionSiswa');
   var statusMuat = document.getElementById('statusMuat');
   var btnSubmit = document.getElementById('btnSubmit');
+  var inputBuku = document.getElementById('inputBuku');
+  var previewBuku = document.getElementById('judulBukuPreview');
 
-  window.onload = function() {
-    fetch(SCRIPT_URL + "?action=init")
+  // Fungsi untuk mengambil data terbaru dari Google Sheet (anti-cache dengan parameter waktu)
+  function segarkanDataDariSheet(isInitialLoad) {
+    fetch(SCRIPT_URL + "?action=init&t=" + new Date().getTime(), { cache: "no-store" })
       .then(function(res) { return res.json(); })
       .then(function(res) {
         dataSiswa = res.siswa || [];
         dataBuku = res.buku || [];
         dataBukuDipinjam = res.bukuDipinjam || [];
         
-        inputSiswa.disabled = false;
-        inputSiswa.placeholder = "Contoh: ketik Ahmad atau 1001...";
-        statusMuat.style.display = "none";
-        btnSubmit.disabled = false;
+        if (isInitialLoad) {
+          inputSiswa.disabled = false;
+          inputSiswa.placeholder = "Contoh: ketik Ahmad atau 1001...";
+          statusMuat.style.display = "none";
+          btnSubmit.disabled = false;
+        }
+        // Perbarui tampilan status buku jika kolom kode buku sedang terisi
+        if (inputBuku.value.trim() !== "") {
+          cekPreviewKodeBuku();
+        }
       })
       .catch(function(err) {
-        statusMuat.textContent = "⚠️ Gagal memuat data. Silakan muat ulang halaman.";
-        statusMuat.style.color = "#dc2626";
+        if (isInitialLoad) {
+          statusMuat.textContent = "⚠️ Gagal memuat data. Silakan muat ulang halaman.";
+          statusMuat.style.color = "#dc2626";
+        }
         console.error("Error:", err);
       });
+  }
+
+  // 1. Muat saat halaman pertama kali dibuka
+  window.onload = function() {
+    segarkanDataDariSheet(true);
   };
+
+  // 2. Segarkan otomatis saat pustakawan/siswa kembali ke tab browser atau klik kolom input
+  window.addEventListener('focus', function() {
+    segarkanDataDariSheet(false);
+  });
+  inputSiswa.addEventListener('focus', function() {
+    segarkanDataDariSheet(false);
+  });
+  inputBuku.addEventListener('focus', function() {
+    segarkanDataDariSheet(false);
+  });
 
   inputSiswa.addEventListener('input', function() {
     var keyword = this.value.toLowerCase().trim();
@@ -147,12 +174,8 @@
     if (e.target !== inputSiswa) boxSaran.style.display = 'none';
   });
 
-  // Cek kode buku dan status ketersediaannya secara langsung saat diketik
-  var inputBuku = document.getElementById('inputBuku');
-  var previewBuku = document.getElementById('judulBukuPreview');
-  
-  inputBuku.addEventListener('input', function() {
-    var kode = this.value.toUpperCase().trim();
+  function cekPreviewKodeBuku() {
+    var kode = inputBuku.value.replace(/^'+/, '').toUpperCase().trim();
     if (!kode) {
       previewBuku.textContent = "";
       return;
@@ -161,7 +184,6 @@
     var ditemukan = dataBuku.find(function(b) { return b.kode.toUpperCase() === kode; });
     
     if (ditemukan) {
-      // Cek apakah buku ini sedang berstatus "Dipinjam"
       if (dataBukuDipinjam.indexOf(kode) !== -1) {
         previewBuku.textContent = "🚫 Buku \"" + ditemukan.judul + "\" sedang dipinjam dan belum dikembalikan!";
         previewBuku.style.color = "#dc2626";
@@ -173,12 +195,14 @@
       previewBuku.textContent = "❌ Kode buku tidak terdaftar! Pastikan kode sesuai label pada buku.";
       previewBuku.style.color = "#dc2626";
     }
-  });
+  }
+
+  inputBuku.addEventListener('input', cekPreviewKodeBuku);
 
   function submitForm(e) {
     e.preventDefault();
     var valSiswa = inputSiswa.value.trim();
-    var valBuku = inputBuku.value.trim();
+    var valBuku = inputBuku.value.replace(/^'+/, '').trim();
     var kodeUpper = valBuku.toUpperCase();
 
     // 1. Validasi Nama Siswa
@@ -208,13 +232,12 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
         identitasSiswa: valSiswa,
-        kodeBuku: valBuku
+        kodeBuku: kodeUpper
       })
     })
     .then(function(res) { return res.json(); })
     .then(function(res) {
       if (res.sukses) {
-        // Tambahkan ke daftar dipinjam lokal agar tidak bisa dipinjam ulang sebelum di-refresh
         if (dataBukuDipinjam.indexOf(kodeUpper) === -1) {
           dataBukuDipinjam.push(kodeUpper);
         }
@@ -224,6 +247,8 @@
         document.getElementById('successContainer').style.display = 'block';
       } else {
         alert("Gagal meminjam: " + (res.pesan || "Terjadi kesalahan pada server."));
+        // Segarkan status jika ternyata baru saja berubah di Sheet
+        segarkanDataDariSheet(false);
       }
       btnSubmit.disabled = false;
       btnSubmit.textContent = "Submit";
@@ -240,6 +265,8 @@
     previewBuku.textContent = "";
     document.getElementById('successContainer').style.display = 'none';
     document.getElementById('formContainer').style.display = 'block';
+    // Ambil ulang status terbaru dari Google Sheet setiap kali klik Selesai
+    segarkanDataDariSheet(false);
   }
 </script>
 </body>
